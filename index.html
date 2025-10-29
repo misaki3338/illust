@@ -43,7 +43,7 @@
   <input id="lw" type="range" min="0.2" max="6" step="0.1" value="1.2">
 
   <label>ジッター強さ（描線の揺らぎ） <span id="jitVal" class="value">0.6</span></label>
-  <input id="jit" type="range" min="0" max="2" step="0.01" value="0.6">
+  <input id="jit" type="range" min="0" max="10" step="0.01" value="0.6">
 
   <label>分割ステップ（1辺あたり — 高いほど滑らか） <span id="stepVal" class="value">8</span></label>
   <input id="step" type="range" min="1" max="30" value="8">
@@ -74,26 +74,26 @@
 
     <div style="margin-top:8px">
       <div><span class="color-swatch" style="background:#222"></span><strong>黒 (dark)</strong></div>
-      <label>クラスタ数（シード） <span id="darkSeedsVal" class="value">4</span></label>
-      <input id="darkSeeds" type="range" min="0" max="40" value="4">
-      <label>1クラスタあたりの広がり（セル数） <span id="darkSpreadVal" class="value">3</span></label>
-      <input id="darkSpread" type="range" min="1" max="200" value="3">
+      <label>クラスタ数（シード） <span id="darkSeedsVal" class="value">2</span></label>
+      <input id="darkSeeds" type="range" min="0" max="40" value="2">
+      <label>1クラスタあたりの広がり（セル数） <span id="darkSpreadVal" class="value">2</span></label>
+      <input id="darkSpread" type="range" min="1" max="200" value="2">
     </div>
 
     <div style="margin-top:10px">
       <div><span class="color-swatch" style="background:#999"></span><strong>灰 (mid)</strong></div>
-      <label>クラスタ数（シード） <span id="midSeedsVal" class="value">8</span></label>
-      <input id="midSeeds" type="range" min="0" max="60" value="8">
-      <label>1クラスタあたりの広がり（セル数） <span id="midSpreadVal" class="value">4</span></label>
-      <input id="midSpread" type="range" min="1" max="200" value="4">
+      <label>クラスタ数（シード） <span id="midSeedsVal" class="value">3</span></label>
+      <input id="midSeeds" type="range" min="0" max="60" value="3">
+      <label>1クラスタあたりの広がり（セル数） <span id="midSpreadVal" class="value">3</span></label>
+      <input id="midSpread" type="range" min="1" max="200" value="3">
     </div>
 
     <div style="margin-top:10px">
       <div><span class="color-swatch" style="background:#dcdcdc"></span><strong>薄灰 (light)</strong></div>
-      <label>クラスタ数（シード） <span id="lightSeedsVal" class="value">12</span></label>
-      <input id="lightSeeds" type="range" min="0" max="60" value="12">
-      <label>1クラスタあたりの広がり（セル数） <span id="lightSpreadVal" class="value">6</span></label>
-      <input id="lightSpread" type="range" min="1" max="200" value="6">
+      <label>クラスタ数（シード） <span id="lightSeedsVal" class="value">3</span></label>
+      <input id="lightSeeds" type="range" min="0" max="60" value="3">
+      <label>1クラスタあたりの広がり（セル数） <span id="lightSpreadVal" class="value">3</span></label>
+      <input id="lightSpread" type="range" min="1" max="200" value="3">
     </div>
 
     <div style="margin-top:10px;display:flex;gap:8px;">
@@ -102,7 +102,7 @@
     </div>
 
     <label style="margin-top:8px"><input id="hideSameBorders" type="checkbox"> 同色の隣接セル間の境界線を消す</label>
-    <label style="margin-top:4px"><input id="keepIndentLines" type="checkbox" checked> へこみ線（下地ライン）を残す</label>
+    <label style="margin-top:4px"><input id="keepIndentLines" type="checkbox"> へこみ線（下地ライン）を残す</label>
     <div class="sub" style="margin-top:6px">ON: 後から塗った側の丸みを優先しつつ、へこみ側の薄い線を残す。OFF: 完全に上書き（へこみ線は描かない）。</div>
   </div>
 
