@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Voronoi Line Art — 塗り順・丸み優先（最終）</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap">
+<style>
+  :root{--bg:#f6f6f6;--panel:#fff;--accent:#222;}
+  html,body{height:100%;margin:0;font-family:"Noto Sans JP",system-ui,Arial;}
+  body{display:flex;gap:12px;background:var(--bg);color:var(--accent);align-items:flex-start;padding:18px;}
+  .canvas-wrap{flex:1;display:flex;justify-content:center;align-items:center;min-height:70vh;}
+  canvas{background:linear-gradient(180deg,#ffffff,#f3f3f3);box-shadow:0 6px 20px rgba(0,0,0,0.08);border-radius:8px;cursor:pointer;}
+  .panel{width:520px;max-height:90vh;overflow:auto;padding:16px;border-radius:10px;background:var(--panel);box-shadow:0 6px 18px rgba(0,0,0,0.06);}
+  h1{font-size:18px;margin:0 0 8px;}
+  label{display:block;font-size:13px;margin-top:10px;color:#444;}
+  input[type="range"]{width:100%;}
+  .row{display:flex;gap:8px;align-items:center;margin-top:10px;}
+  .btn{padding:8px 12px;border-radius:8px;border:0;background:#222;color:#fff;cursor:pointer;font-weight:600;}
+  .btn.secondary{background:#eee;color:#222;}
+  .small{font-size:12px;color:#666;margin-top:6px;}
+  .value{width:56px;text-align:right;font-weight:700;}
+  .color-swatch{width:20px;height:12px;border-radius:3px;display:inline-block;margin-right:8px;vertical-align:middle;border:1px solid rgba(0,0,0,0.08);}
+  .sub{font-size:12px;color:#666;margin-top:6px}
+  .settings-group{border-top:1px dashed #eee;padding-top:8px;margin-top:8px}
+  @media(max-width:900px){body{flex-direction:column;} .panel{width:100%}}
+</style>
+</head>
+<body>
+
+<div class="canvas-wrap">
+  <canvas id="c" width="1200" height="850" title="クリックでセルを塗り替え"></canvas>
+</div>
+
+<div class="panel" role="region" aria-label="controls">
+  <h1>Voronoi Line Art — 塗り順・丸み優先</h1>
+  <div class="small">後から塗った方を優先して丸みと色で上書きします。へこみ線（下地ライン）を残す/消すの切替が可能。</div>
+
+  <label>ポイント数 <span id="ptsVal" class="value">120</span></label>
+  <input id="pts" type="range" min="10" max="800" value="120">
+
+  <label>線の太さ(px) <span id="lwVal" class="value">1.2</span></label>
+  <input id="lw" type="range" min="0.2" max="6" step="0.1" value="1.2">
+
+  <label>ジッター強さ（描線の揺らぎ） <span id="jitVal" class="value">0.6</span></label>
+  <input id="jit" type="range" min="0" max="2" step="0.01" value="0.6">
+
+  <label>分割ステップ（1辺あたり — 高いほど滑らか） <span id="stepVal" class="value">8</span></label>
+  <input id="step" type="range" min="1" max="30" value="8">
+
+  <label>曲線度合い（0=ほぼ直線、1=強めの丸み） <span id="curveVal" class="value">0.45</span></label>
+  <input id="curve" type="range" min="0" max="1" step="0.01" value="0.45">
+
+  <div class="row">
+    <label class="toggle"><input id="showCenters" type="checkbox"> 中心点を表示</label>
+    <label class="toggle"><input id="invert" type="checkbox"> 反転（黒背景＋白線）</label>
+  </div>
+
+  <div style="margin-top:12px;display:flex;gap:8px;">
+    <button id="regen" class="btn">再生成</button>
+    <button id="save" class="btn secondary">PNG保存</button>
+  </div>
+
+  <div class="settings-group">
+    <strong>クリック塗り</strong>
+    <div class="sub">クリックでセルが「未塗り→薄灰→灰→黒→未塗り」を循環。塗るたびに塗り順が更新され、後から塗った方が上になります。</div>
+    <label><input id="clickMode" type="checkbox" checked> クリック塗りを有効にする</label>
+    <button id="resetFills" class="btn secondary" style="margin-top:8px">塗りをリセット</button>
+  </div>
+
+  <div class="settings-group">
+    <strong>ランダム塗り（連結クラスタ）</strong>
+    <div class="sub">各シードから必ず隣接セルのみで広がるクラスタを作ります。塗り順はクラスタ内の塗り実行順で付与されます。</div>
+
+    <div style="margin-top:8px">
+      <div><span class="color-swatch" style="background:#222"></span><strong>黒 (dark)</strong></div>
+      <label>クラスタ数（シード） <span id="darkSeedsVal" class="value">4</span></label>
+      <input id="darkSeeds" type="range" min="0" max="40" value="4">
+      <label>1クラスタあたりの広がり（セル数） <span id="darkSpreadVal" class="value">3</span></label>
+      <input id="darkSpread" type="range" min="1" max="200" value="3">
+    </div>
+
+    <div style="margin-top:10px">
+      <div><span class="color-swatch" style="background:#999"></span><strong>灰 (mid)</strong></div>
+      <label>クラスタ数（シード） <span id="midSeedsVal" class="value">8</span></label>
+      <input id="midSeeds" type="range" min="0" max="60" value="8">
+      <label>1クラスタあたりの広がり（セル数） <span id="midSpreadVal" class="value">4</span></label>
+      <input id="midSpread" type="range" min="1" max="200" value="4">
+    </div>
+
+    <div style="margin-top:10px">
+      <div><span class="color-swatch" style="background:#dcdcdc"></span><strong>薄灰 (light)</strong></div>
+      <label>クラスタ数（シード） <span id="lightSeedsVal" class="value">12</span></label>
+      <input id="lightSeeds" type="range" min="0" max="60" value="12">
+      <label>1クラスタあたりの広がり（セル数） <span id="lightSpreadVal" class="value">6</span></label>
+      <input id="lightSpread" type="range" min="1" max="200" value="6">
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px;">
+      <button id="randomFill" class="btn">ランダム塗り実行</button>
+      <button id="randomClear" class="btn secondary">ランダム塗りをクリア</button>
+    </div>
+
+    <label style="margin-top:8px"><input id="hideSameBorders" type="checkbox"> 同色の隣接セル間の境界線を消す</label>
+    <label style="margin-top:4px"><input id="keepIndentLines" type="checkbox" checked> へこみ線（下地ライン）を残す</label>
+    <div class="sub" style="margin-top:6px">ON: 後から塗った側の丸みを優先しつつ、へこみ側の薄い線を残す。OFF: 完全に上書き（へこみ線は描かない）。</div>
+  </div>
+
+  <div class="footer" style="margin-top:12px;font-size:12px;color:#777">
+    <strong>補足：</strong> ランダム塗りの順序やクラスタサイズを調整すると、どの色が上に来るか表現を作れます。塗り順は「クリック」や「ランダム塗り実行」時に増える一方です（新しい順を優先）。
+  </div>
+</div>
+
+<!-- d3-delaunay CDN -->
+<script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6/dist/d3-delaunay.min.js"></script>
+<script>
+(() => {
+  // canvas & context
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  const W = canvas.width, H = canvas.height;
+
+  // colors and cycle order
+  const COLORS = { none: null, light: "#dcdcdc", mid: "#999999", dark: "#222222" };
+  const cycleOrder = ['none','light','mid','dark'];
+
+  // controls
+  const els = {
+    pts: document.getElementById('pts'),
+    lw: document.getElementById('lw'),
+    jit: document.getElementById('jit'),
+    step: document.getElementById('step'),
+    curve: document.getElementById('curve'),
+    showCenters: document.getElementById('showCenters'),
+    invert: document.getElementById('invert'),
+    regen: document.getElementById('regen'),
+    save: document.getElementById('save'),
+    clickMode: document.getElementById('clickMode'),
+    resetFills: document.getElementById('resetFills'),
+    randomFill: document.getElementById('randomFill'),
+    randomClear: document.getElementById('randomClear'),
+    hideSameBorders: document.getElementById('hideSameBorders'),
+    keepIndentLines: document.getElementById('keepIndentLines'),
+    darkSeeds: document.getElementById('darkSeeds'),
+    darkSpread: document.getElementById('darkSpread'),
+    midSeeds: document.getElementById('midSeeds'),
+    midSpread: document.getElementById('midSpread'),
+    lightSeeds: document.getElementById('lightSeeds'),
+    lightSpread: document.getElementById('lightSpread'),
+    ptsVal: document.getElementById('ptsVal'),
+    lwVal: document.getElementById('lwVal'),
+    jitVal: document.getElementById('jitVal'),
+    stepVal: document.getElementById('stepVal'),
+    curveVal: document.getElementById('curveVal'),
+    darkSeedsVal: document.getElementById('darkSeedsVal'),
+    darkSpreadVal: document.getElementById('darkSpreadVal'),
+    midSeedsVal: document.getElementById('midSeedsVal'),
+    midSpreadVal: document.getElementById('midSpreadVal'),
+    lightSeedsVal: document.getElementById('lightSeedsVal'),
+    lightSpreadVal: document.getElementById('lightSpreadVal')
+  };
+
+  function updateLabels(){
+    els.ptsVal.textContent = els.pts.value;
+    els.lwVal.textContent = parseFloat(els.lw.value).toFixed(1);
+    els.jitVal.textContent = parseFloat(els.jit.value).toFixed(2);
+    els.stepVal.textContent = els.step.value;
+    els.curveVal.textContent = parseFloat(els.curve.value).toFixed(2);
+    els.darkSeedsVal.textContent = els.darkSeeds.value;
+    els.darkSpreadVal.textContent = els.darkSpread.value;
+    els.midSeedsVal.textContent = els.midSeeds.value;
+    els.midSpreadVal.textContent = els.midSpread.value;
+    els.lightSeedsVal.textContent = els.lightSeeds.value;
+    els.lightSpreadVal.textContent = els.lightSpread.value;
+  }
+
+  // geometry & states
+  let points = [];
+  let delaunay = null;
+  let voronoi = null;
+  let cellPolygons = [];
+  let cellCentroids = [];
+  let cellColors = [];   // 'none'|'light'|'mid'|'dark'
+  let fillOrder = [];    // numeric order per cell (0 = unfilled)
+  let currentOrder = 1;  // increments whenever a cell gets (re)filled
+  let edgeMap = new Map();
+
+  // helpers
+  function randRange(a,b){ return a + Math.random()*(b-a); }
+  function gaussianRandom(){ let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random(); return Math.sqrt(-2.0*Math.log(u))*Math.cos(2.0*Math.PI*v); }
+
+  function makePoints(n){
+    const pts = [];
+    const pad = Math.min(W,H) * 0.02;
+    for(let i=0;i<n;i++){
+      let x = randRange(pad, W - pad);
+      let y = randRange(pad, H - pad);
+      x += gaussianRandom()*0.5;
+      y += gaussianRandom()*0.5;
+      pts.push([x,y]);
+    }
+    return pts;
+  }
+
+  function polygonCentroid(poly){
+    if(!poly || poly.length===0) return {x:0,y:0};
+    let area=0,cx=0,cy=0;
+    for(let i=0;i<poly.length-1;i++){
+      const x0=poly[i][0], y0=poly[i][1];
+      const x1=poly[i+1][0], y1=poly[i+1][1];
+      const a = x0*y1 - x1*y0;
+      area += a;
+      cx += (x0 + x1) * a;
+      cy += (y0 + y1) * a;
+    }
+    if(Math.abs(area) < 1e-6){
+      let sx=0, sy=0;
+      for(const p of poly){ sx+=p[0]; sy+=p[1]; }
+      return { x: sx/poly.length, y: sy/poly.length };
+    }
+    area *= 0.5;
+    cx /= (6*area);
+    cy /= (6*area);
+    return { x: cx, y: cy };
+  }
+
+  function keyForEdge(a,b){
+    const ax = +a[0].toFixed(2), ay = +a[1].toFixed(2);
+    const bx = +b[0].toFixed(2), by = +b[1].toFixed(2);
+    const k1 = `${ax},${ay}|${bx},${by}`;
+    const k2 = `${bx},${by}|${ax},${ay}`;
+    return k1 < k2 ? k1 : k2;
+  }
+
+  function computeVoronoi(){
+    delaunay = d3.Delaunay.from(points);
+    voronoi = delaunay.voronoi([0,0,W,H]);
+    cellPolygons = [];
+    edgeMap = new Map();
+    for(let i=0;i<points.length;i++){
+      const poly = voronoi.cellPolygon(i);
+      cellPolygons.push(poly || null);
+    }
+    cellCentroids = cellPolygons.map(p => polygonCentroid(p || []));
+    // edgeMap
+    for(let i=0;i<cellPolygons.length;i++){
+      const poly = cellPolygons[i];
+      if(!poly) continue;
+      for(let e=0;e<poly.length-1;e++){
+        const p = poly[e], q = poly[e+1];
+        const key = keyForEdge(p,q);
+        if(!edgeMap.has(key)) edgeMap.set(key, { p:[p[0],p[1]], q:[q[0],q[1]], cells: new Set() });
+        edgeMap.get(key).cells.add(i);
+      }
+    }
+  }
+
+  // jitter function (toward normal)
+  function jitterPoint(pt, neighbor, jitter){
+    if(!neighbor) return [pt[0],pt[1]];
+    const dx = neighbor[0]-pt[0], dy = neighbor[1]-pt[1];
+    const len = Math.hypot(dx,dy) || 1;
+    const nx = -dy/len, ny = dx/len;
+    const offset = (Math.random()-0.5) * jitter * (len/30);
+    return [pt[0] + nx*offset, pt[1] + ny*offset];
+  }
+
+// draw fills based on keepIndent setting
+  function drawFilledCells(params){
+    const { jitter, curveAmount, keepIndent } = params;
+    // collect indices that are filled
+    const filledIdx = [];
+    for(let i=0;i<cellPolygons.length;i++){
+      if(cellColors[i] && cellColors[i] !== 'none') filledIdx.push(i);
+    }
+    
+    if(keepIndent){
+      // ON: sort by fillOrder (ascending) so later (bigger) are drawn last (on top)
+      filledIdx.sort((a,b) => (fillOrder[a] || 0) - (fillOrder[b] || 0));
+    } else {
+      // OFF: sort by fillOrder (descending) so earlier (smaller) are drawn last (on top)
+      filledIdx.sort((a,b) => (fillOrder[b] || 0) - (fillOrder[a] || 0));
+    }
+
+    for(const i of filledIdx){
+      const poly = cellPolygons[i];
+      if(!poly) continue;
+      const centroid = cellCentroids[i] || {x:W/2,y:H/2};
+      const n = poly.length;
+      if(n < 2) continue;
+      ctx.beginPath();
+      const p0j = jitterPoint(poly[0], poly[1], jitter);
+      ctx.moveTo(p0j[0], p0j[1]);
+      for(let k=0;k<n-1;k++){
+        const p = poly[k], q = poly[k+1];
+        const midx = (p[0]+q[0])/2, midy = (p[1]+q[1])/2;
+        const dx = q[0]-p[0], dy = q[1]-p[1];
+        const len = Math.hypot(dx,dy) || 1;
+        const nx = -dy/len, ny = dx/len;
+        // outward sign determined by centroid -> mid
+        const vx = midx - centroid.x, vy = midy - centroid.y;
+        const sign = Math.sign(vx * nx + vy * ny) || 1;
+        const offsetBase = (curveAmount * Math.min(len,80)) * 0.35;
+        const offset = sign * offsetBase;
+        const cx = midx + nx * offset;
+        const cy = midy + ny * offset;
+        const qj = jitterPoint(q, p, jitter);
+        ctx.quadraticCurveTo(cx, cy, qj[0], qj[1]);
+      }
+      ctx.closePath();
+      ctx.fillStyle = COLORS[cellColors[i]];
+      ctx.fill();
+    }
+  }
+
+  // draw edges with z-order aware convex direction based on keepIndent setting
+  function drawEdges(params){
+    const { lineWidth, jitter, curveAmount, invert, hideSameBorders, keepIndent } = params;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = invert ? '#ffffff' : '#111111';
+
+    // collect all edges with their winner/loser info
+    const edgesToDraw = [];
+
+    for(const [key, entry] of edgeMap.entries()){
+      const { p, q, cells } = entry;
+      const cellArr = Array.from(cells);
+      
+      // if same-color and hideSameBorders => skip
+      if(hideSameBorders && cellArr.length === 2){
+        const a = cellArr[0], b = cellArr[1];
+        const ca = cellColors[a] || 'none';
+        const cb = cellColors[b] || 'none';
+        if(ca !== 'none' && ca === cb) continue;
+      }
+
+      // determine winner/loser based on keepIndent setting
+      let winner = -1, loser = -1;
+      
+      if(keepIndent){
+        // ON: 後から塗った方（higher fillOrder）が勝者として丸みを優先
+        if(cellArr.length === 2){
+          const a = cellArr[0], b = cellArr[1];
+          const ca = cellColors[a] || 'none'; 
+          const cb = cellColors[b] || 'none';
+          const oa = fillOrder[a] || 0; 
+          const ob = fillOrder[b] || 0;
+          
+          if(ca === 'none' && cb === 'none'){
+            winner = a; 
+            loser = b;
+          } else if(ca === 'none' && cb !== 'none'){
+            winner = b;
+            loser = a;
+          } else if(ca !== 'none' && cb === 'none'){
+            winner = a;
+            loser = b;
+          } else {
+            // both colored: later one (larger fillOrder) wins
+            winner = oa >= ob ? a : b;
+            loser = (winner === a) ? b : a;
+          }
+        } else {
+          winner = cellArr.length > 0 ? cellArr[0] : -1;
+          loser = -1;
+        }
+      } else {
+        // OFF: 元々塗られている方（smaller fillOrder）が勝者として丸みを優先
+        if(cellArr.length === 2){
+          const a = cellArr[0], b = cellArr[1];
+          const ca = cellColors[a] || 'none'; 
+          const cb = cellColors[b] || 'none';
+          const oa = fillOrder[a] || 0; 
+          const ob = fillOrder[b] || 0;
+          
+          if(ca === 'none' && cb === 'none'){
+            winner = a; 
+            loser = b;
+          } else if(ca === 'none' && cb !== 'none'){
+            winner = b;
+            loser = a;
+          } else if(ca !== 'none' && cb === 'none'){
+            winner = a;
+            loser = b;
+          } else {
+            // both colored: earlier one (smaller fillOrder) wins
+            if(oa === 0 && ob === 0){
+              winner = a;
+              loser = b;
+            } else if(oa === 0){
+              winner = b;
+              loser = a;
+            } else if(ob === 0){
+              winner = a;
+              loser = b;
+            } else {
+              winner = oa < ob ? a : b;
+              loser = (winner === a) ? b : a;
+            }
+          }
+        } else {
+          winner = cellArr.length > 0 ? cellArr[0] : -1;
+          loser = -1;
+        }
+      }
+
+      edgesToDraw.push({ p, q, cells: cellArr, winner, loser });
+    }
+
+    // sort edges: if keepIndent ON, draw edges in ascending winner order (later drawn on top)
+    // if keepIndent OFF, draw edges in descending winner order (earlier drawn on top)
+    if(keepIndent){
+      edgesToDraw.sort((e1, e2) => {
+        const o1 = e1.winner >= 0 ? (fillOrder[e1.winner] || 0) : 0;
+        const o2 = e2.winner >= 0 ? (fillOrder[e2.winner] || 0) : 0;
+        return o1 - o2; // ascending
+      });
+    } else {
+      edgesToDraw.sort((e1, e2) => {
+        const o1 = e1.winner >= 0 ? (fillOrder[e1.winner] || 0) : 0;
+        const o2 = e2.winner >= 0 ? (fillOrder[e2.winner] || 0) : 0;
+        return o2 - o1; // descending
+      });
+    }
+
+    // draw all edges in sorted order
+    for(const edge of edgesToDraw){
+      const { p, q, cells: cellArr, winner, loser } = edge;
+
+      // decide convex direction based on winner's centroid relative to edge mid
+      const midx = (p[0]+q[0])/2, midy = (p[1]+q[1])/2;
+      const dx = q[0]-p[0], dy = q[1]-p[1];
+      const len = Math.hypot(dx,dy) || 1;
+      const nx = -dy/len, ny = dx/len;
+
+      const centroid = (winner >= 0 && cellCentroids[winner]) ? cellCentroids[winner] : {x:W/2,y:H/2};
+      const vx = midx - centroid.x, vy = midy - centroid.y;
+      const sign = Math.sign(vx * nx + vy * ny) || 1;
+      const offsetBase = (curveAmount * Math.min(len,80)) * 0.35;
+      const jitterOffset = (Math.random()-0.5) * jitter * (len/30);
+      const offset = sign * (offsetBase + jitterOffset);
+
+      const cx = midx + nx * offset;
+      const cy = midy + ny * offset;
+
+      const pJ = jitterPoint(p, q, jitter);
+      const qJ = jitterPoint(q, p, jitter);
+
+      // draw main curve (winner bulge)
+      ctx.strokeStyle = invert ? '#ffffff' : '#111111';
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(pJ[0], pJ[1]);
+      ctx.quadraticCurveTo(cx, cy, qJ[0], qJ[1]);
+      ctx.stroke();
+
+      // optionally draw thin indent curve on the opposite side
+      if(keepIndent){
+        // only draw indent if there are two cells with different colors and both colored
+        if(cellArr.length === 2){
+          const a = cellArr[0], b = cellArr[1];
+          const ca = cellColors[a] || 'none'; 
+          const cb = cellColors[b] || 'none';
+          if(ca !== 'none' && cb !== 'none' && ca !== cb){
+            // small opposite offset
+            const offset2 = -sign * (offsetBase * 0.28);
+            const cx2 = midx + nx * offset2;
+            const cy2 = midy + ny * offset2;
+            ctx.beginPath();
+            const thinWidth = Math.max(0.4, lineWidth * 0.5);
+            ctx.lineWidth = thinWidth;
+            ctx.globalAlpha = 0.55;
+            ctx.moveTo(pJ[0], pJ[1]);
+            ctx.quadraticCurveTo(cx2, cy2, qJ[0], qJ[1]);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+          }
+        }
+      }
+    }
+  }
+
+  // overall draw
+  function drawAll(){
+    const params = {
+      lineWidth: parseFloat(els.lw.value),
+      jitter: parseFloat(els.jit.value),
+      step: parseInt(els.step.value,10),
+      curveAmount: parseFloat(els.curve.value),
+      invert: els.invert.checked,
+      hideSameBorders: els.hideSameBorders.checked,
+      keepIndent: els.keepIndentLines.checked
+    };
+    ctx.clearRect(0,0,W,H);
+    if(params.invert){ 
+      ctx.fillStyle = '#0b0b0b'; 
+      ctx.fillRect(0,0,W,H); 
+    } else { 
+      ctx.fillStyle = '#ffffff'; 
+      ctx.fillRect(0,0,W,H); 
+    }
+
+    // fills (in draw order based on fillOrder if keepIndent is ON)
+    drawFilledCells(params);
+
+    // edges
+    ctx.lineWidth = params.lineWidth;
+    ctx.strokeStyle = params.invert ? '#ffffff' : '#111111';
+    drawEdges(params);
+
+    // centers
+    if(els.showCenters.checked){
+      ctx.beginPath();
+      for(const p of points){
+        ctx.moveTo(p[0]+2,p[1]);
+        ctx.arc(p[0],p[1],2,0,Math.PI*2);
+      }
+      ctx.fillStyle = params.invert ? '#ffffff' : '#111111';
+      ctx.fill();
+    }
+  }
+
+  // initialization and generation
+  function generateAndDraw(){
+    updateLabels();
+    points = makePoints(parseInt(els.pts.value,10));
+    computeVoronoi();
+    cellColors = Array(points.length).fill('none');
+    fillOrder = Array(points.length).fill(0);
+    currentOrder = 1;
+    drawAll();
+  }
+
+  // find index for mouse point
+  function getMousePos(evt){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width, scaleY = H / rect.height;
+    const x = (evt.clientX - rect.left) * scaleX;
+    const y = (evt.clientY - rect.top) * scaleY;
+    return [x,y];
+  }
+  function findCellIndex(x,y){ 
+    if(!delaunay) return -1; 
+    return delaunay.find(x,y); 
+  }
+
+  // cycle color for a cell and update fillOrder
+  function cycleCellColor(i){
+    if(i<0 || i>=cellColors.length) return;
+    const cur = cellColors[i] || 'none';
+    const pos = cycleOrder.indexOf(cur);
+    const next = cycleOrder[(pos+1) % cycleOrder.length];
+    cellColors[i] = next;
+    if(next === 'none') fillOrder[i] = 0;
+    else fillOrder[i] = currentOrder++;
+    drawAll();
+  }
+
+  // reset fills
+  function resetFills(){ 
+    cellColors = Array(points.length).fill('none'); 
+    fillOrder = Array(points.length).fill(0); 
+    currentOrder = 1; 
+    drawAll(); 
+  }
+
+  // Random connected fill: for each seed create connected cluster of size spreadCount
+  function randomFillColorConnected(colorKey, seeds, spreadCount){
+    const n = points.length;
+    if(n===0 || seeds <= 0 || spreadCount <= 0) return;
+    let candidates = [];
+    for(let i=0;i<n;i++) if(cellColors[i] !== colorKey) candidates.push(i);
+    if(candidates.length === 0) return;
+    
+    for(let s=0;s<seeds;s++){
+      if(candidates.length === 0) break;
+      const ri = Math.floor(Math.random()*candidates.length);
+      const start = candidates.splice(ri,1)[0];
+      const toFill = new Set([start]);
+      const queue = [start];
+      
+      while(queue.length > 0 && toFill.size < spreadCount){
+        const cur = queue.shift();
+        const neighs = Array.from(delaunay.neighbors(cur));
+        // shuffle neighbors
+        for(let t=neighs.length-1;t>0;t--){
+          const r = Math.floor(Math.random()*(t+1));
+          [neighs[t],neighs[r]] = [neighs[r],neighs[t]];
+        }
+        for(const nb of neighs){
+          if(toFill.size >= spreadCount) break;
+          if(!toFill.has(nb)) { 
+            toFill.add(nb); 
+            queue.push(nb); 
+          }
+        }
+        if(queue.length === 0 && toFill.size < spreadCount){
+          const frontier = Array.from(toFill);
+          const pick = frontier[Math.floor(Math.random()*frontier.length)];
+          const nbs2 = Array.from(delaunay.neighbors(pick));
+          for(const nb of nbs2){
+            if(toFill.size >= spreadCount) break;
+            if(!toFill.has(nb)){ 
+              toFill.add(nb); 
+              queue.push(nb); 
+            }
+          }
+        }
+      }
+      // apply fill in order (so fillOrder increases in BFS order -> natural layering)
+      for(const idx of toFill){
+        cellColors[idx] = colorKey;
+        fillOrder[idx] = currentOrder++;
+        // remove from candidates if present
+        const pos = candidates.indexOf(idx);
+        if(pos >= 0) candidates.splice(pos,1);
+      }
+    }
+  }
+
+  function runAllRandomFill(){
+    const ds = parseInt(els.darkSeeds.value,10);
+    const dsp = parseInt(els.darkSpread.value,10);
+    const ms = parseInt(els.midSeeds.value,10);
+    const msp = parseInt(els.midSpread.value,10);
+    const ls = parseInt(els.lightSeeds.value,10);
+    const lsp = parseInt(els.lightSpread.value,10);
+    // apply dark -> mid -> light so later ones overwrite if overlapping
+    randomFillColorConnected('dark', ds, dsp);
+    randomFillColorConnected('mid', ms, msp);
+    randomFillColorConnected('light', ls, lsp);
+    drawAll();
+  }
+
+  function clearRandomFills(){ 
+    resetFills(); 
+  }
+
+  // event wiring
+  canvas.addEventListener('click', (evt)=>{
+    if(!els.clickMode.checked) return;
+    const [x,y] = getMousePos(evt);
+    const idx = findCellIndex(x,y);
+    if(idx >= 0) cycleCellColor(idx);
+  });
+
+  ['pts','lw','jit','step','curve','showCenters','invert','hideSameBorders','keepIndentLines'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.addEventListener('input', ()=>{ 
+      updateLabels(); 
+      if(id==='pts') generateAndDraw(); 
+      else drawAll(); 
+    });
+    el.addEventListener('change', ()=>{ 
+      if(id==='pts') generateAndDraw(); 
+      else drawAll(); 
+    });
+  });
+  
+  ['darkSeeds','darkSpread','midSeeds','midSpread','lightSeeds','lightSpread'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.addEventListener('input', updateLabels);
+    el.addEventListener('change', updateLabels);
+  });
+
+  els.regen.addEventListener('click', generateAndDraw);
+  els.save.addEventListener('click', ()=>{ 
+    const link = document.createElement('a'); 
+    link.download = 'voronoi_zorder.png'; 
+    link.href = canvas.toDataURL('image/png'); 
+    link.click(); 
+  });
+  els.resetFills.addEventListener('click', resetFills);
+  els.randomFill.addEventListener('click', runAllRandomFill);
+  els.randomClear.addEventListener('click', clearRandomFills);
+
+  // init
+  updateLabels();
+  generateAndDraw();
+
+  // responsive CSS scaling
+  function fitCanvas(){
+    const container = canvas.parentElement;
+    const rect = container.getBoundingClientRect();
+    const maxW = rect.width - 12;
+    const maxH = window.innerHeight - 120;
+    const scale = Math.min(1, maxW / W, maxH / H);
+    canvas.style.width = Math.round(W*scale) + 'px';
+    canvas.style.height = Math.round(H*scale) + 'px';
+  }
+  window.addEventListener('resize', fitCanvas);
+  fitCanvas();
+
+})();
+</script>
+</body>
+</html>
