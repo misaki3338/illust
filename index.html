@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Voronoi Line Art — 塗り順・丸み優先(最終)</title>
+<title>Voronoi Line Art – 塗り順・丸み優先(最終)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap">
 <style>
   :root{--bg:#f6f6f6;--panel:#fff;--accent:#222;}
@@ -15,6 +15,7 @@
   h1{font-size:18px;margin:0 0 8px;}
   label{display:block;font-size:13px;margin-top:10px;color:#444;}
   input[type="range"]{width:100%;}
+  input[type="color"]{width:60px;height:28px;border:1px solid #ccc;border-radius:4px;cursor:pointer;}
   .row{display:flex;gap:8px;align-items:center;margin-top:10px;}
   .btn{padding:8px 12px;border-radius:8px;border:0;background:#222;color:#fff;cursor:pointer;font-weight:600;}
   .btn.secondary{background:#eee;color:#222;}
@@ -23,6 +24,7 @@
   .color-swatch{width:20px;height:12px;border-radius:3px;display:inline-block;margin-right:8px;vertical-align:middle;border:1px solid rgba(0,0,0,0.08);}
   .sub{font-size:12px;color:#666;margin-top:6px}
   .settings-group{border-top:1px dashed #eee;padding-top:8px;margin-top:8px}
+  .color-row{display:flex;gap:8px;align-items:center;margin-top:6px;}
   @media(max-width:900px){body{flex-direction:column;} .panel{width:100%}}
 </style>
 </head>
@@ -45,7 +47,7 @@
   <label>ジッター強さ(描線の揺らぎ) <span id="jitVal" class="value">0.6</span></label>
   <input id="jit" type="range" min="0" max="10" step="0.01" value="0.6">
 
-  <label>分割ステップ(1辺あたり — 高いほど滑らか) <span id="stepVal" class="value">8</span></label>
+  <label>分割ステップ(1辺あたり – 高いほど滑らか) <span id="stepVal" class="value">8</span></label>
   <input id="step" type="range" min="1" max="30" value="8">
 
   <label>曲線度合い(0=ほぼ直線、1=強めの丸み) <span id="curveVal" class="value">0.45</span></label>
@@ -64,9 +66,32 @@
 
   <div class="settings-group">
     <strong>クリック塗り</strong>
-    <div class="sub">クリックでセルが「未塗り→白→灰→黒→未塗り」を循環。塗るたびに塗り順が更新され、後から塗った方が上になります。</div>
+    <div class="sub">クリックでセルが「未塗り→色1→色2→色3→未塗り」を循環。塗るたびに塗り順が更新され、後から塗った方が上になります。</div>
     <label><input id="clickMode" type="checkbox" checked> クリック塗りを有効にする</label>
     <button id="resetFills" class="btn secondary" style="margin-top:8px">塗りをリセット</button>
+  </div>
+
+  <div class="settings-group">
+    <strong>塗り色の設定</strong>
+    <div class="sub">3色の塗り色をカラーピッカーで自由に選択できます。</div>
+    
+    <div class="color-row">
+      <strong>色1:</strong>
+      <input id="color1Picker" type="color" value="#77787B">
+      <span id="color1Preview" class="color-swatch" style="background:#77787B;width:30px;height:20px;"></span>
+    </div>
+    
+    <div class="color-row">
+      <strong>色2:</strong>
+      <input id="color2Picker" type="color" value="#999999">
+      <span id="color2Preview" class="color-swatch" style="background:#999999;width:30px;height:20px;"></span>
+    </div>
+    
+    <div class="color-row">
+      <strong>色3:</strong>
+      <input id="color3Picker" type="color" value="#dcdcdc">
+      <span id="color3Preview" class="color-swatch" style="background:#dcdcdc;width:30px;height:20px;"></span>
+    </div>
   </div>
 
   <div class="settings-group">
@@ -74,27 +99,27 @@
     <div class="sub">各シードから必ず隣接セルのみで広がるクラスタを作ります。塗り順はクラスタ内の塗り実行順で付与されます。</div>
 
     <div style="margin-top:8px">
-      <div><span class="color-swatch" style="background:#77787B"></span><strong>黒 (dark)</strong></div>
-      <label>クラスタ数(シード) <span id="darkSeedsVal" class="value">2</span></label>
-      <input id="darkSeeds" type="range" min="0" max="40" value="2">
-      <label>1クラスタあたりの広がり(セル数) <span id="darkSpreadVal" class="value">2</span></label>
-      <input id="darkSpread" type="range" min="1" max="200" value="2">
+      <div><span id="color1Swatch" class="color-swatch" style="background:#77787B"></span><strong>色1</strong></div>
+      <label>クラスタ数(シード) <span id="color1SeedsVal" class="value">2</span></label>
+      <input id="color1Seeds" type="range" min="0" max="40" value="2">
+      <label>1クラスタあたりの広がり(セル数) <span id="color1SpreadVal" class="value">2</span></label>
+      <input id="color1Spread" type="range" min="1" max="200" value="2">
     </div>
 
     <div style="margin-top:10px">
-      <div><span class="color-swatch" style="background:#999"></span><strong>灰 (mid)</strong></div>
-      <label>クラスタ数(シード) <span id="midSeedsVal" class="value">3</span></label>
-      <input id="midSeeds" type="range" min="0" max="60" value="3">
-      <label>1クラスタあたりの広がり(セル数) <span id="midSpreadVal" class="value">3</span></label>
-      <input id="midSpread" type="range" min="1" max="200" value="3">
+      <div><span id="color2Swatch" class="color-swatch" style="background:#999"></span><strong>色2</strong></div>
+      <label>クラスタ数(シード) <span id="color2SeedsVal" class="value">3</span></label>
+      <input id="color2Seeds" type="range" min="0" max="60" value="3">
+      <label>1クラスタあたりの広がり(セル数) <span id="color2SpreadVal" class="value">3</span></label>
+      <input id="color2Spread" type="range" min="1" max="200" value="3">
     </div>
 
     <div style="margin-top:10px">
-      <div><span class="color-swatch" style="background:#dcdcdc"></span><strong>白 (light)</strong></div>
-      <label>クラスタ数(シード) <span id="lightSeedsVal" class="value">3</span></label>
-      <input id="lightSeeds" type="range" min="0" max="60" value="3">
-      <label>1クラスタあたりの広がり(セル数) <span id="lightSpreadVal" class="value">3</span></label>
-      <input id="lightSpread" type="range" min="1" max="200" value="3">
+      <div><span id="color3Swatch" class="color-swatch" style="background:#dcdcdc"></span><strong>色3</strong></div>
+      <label>クラスタ数(シード) <span id="color3SeedsVal" class="value">3</span></label>
+      <input id="color3Seeds" type="range" min="0" max="60" value="3">
+      <label>1クラスタあたりの広がり(セル数) <span id="color3SpreadVal" class="value">3</span></label>
+      <input id="color3Spread" type="range" min="1" max="200" value="3">
     </div>
 
     <div style="margin-top:10px;display:flex;gap:8px;">
@@ -108,20 +133,23 @@
   </div>
 </div>
 
-<!-- d3-delaunay CDN -->
 <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6/dist/d3-delaunay.min.js"></script>
 <script>
 (() => {
-  // canvas & context
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha: true });
   const W = canvas.width, H = canvas.height;
 
-  // colors and cycle order
-  const COLORS = { none: null, light: "#dcdcdc", mid: "#999999", dark: "#77787B" };
-  const cycleOrder = ['none','light','mid','dark'];
+  // カラーピッカーで設定可能な色
+  let userColors = {
+    color1: "#77787B",
+    color2: "#999999",
+    color3: "#dcdcdc"
+  };
 
-  // controls
+  const COLORS = { none: null };
+  const cycleOrder = ['none','color1','color2','color3'];
+
   const els = {
     pts: document.getElementById('pts'),
     lw: document.getElementById('lw'),
@@ -139,23 +167,32 @@
     randomClear: document.getElementById('randomClear'),
     hideSameBorders: document.getElementById('hideSameBorders'),
     keepIndentLines: document.getElementById('keepIndentLines'),
-    darkSeeds: document.getElementById('darkSeeds'),
-    darkSpread: document.getElementById('darkSpread'),
-    midSeeds: document.getElementById('midSeeds'),
-    midSpread: document.getElementById('midSpread'),
-    lightSeeds: document.getElementById('lightSeeds'),
-    lightSpread: document.getElementById('lightSpread'),
+    color1Seeds: document.getElementById('color1Seeds'),
+    color1Spread: document.getElementById('color1Spread'),
+    color2Seeds: document.getElementById('color2Seeds'),
+    color2Spread: document.getElementById('color2Spread'),
+    color3Seeds: document.getElementById('color3Seeds'),
+    color3Spread: document.getElementById('color3Spread'),
+    color1Picker: document.getElementById('color1Picker'),
+    color2Picker: document.getElementById('color2Picker'),
+    color3Picker: document.getElementById('color3Picker'),
+    color1Preview: document.getElementById('color1Preview'),
+    color2Preview: document.getElementById('color2Preview'),
+    color3Preview: document.getElementById('color3Preview'),
+    color1Swatch: document.getElementById('color1Swatch'),
+    color2Swatch: document.getElementById('color2Swatch'),
+    color3Swatch: document.getElementById('color3Swatch'),
     ptsVal: document.getElementById('ptsVal'),
     lwVal: document.getElementById('lwVal'),
     jitVal: document.getElementById('jitVal'),
     stepVal: document.getElementById('stepVal'),
     curveVal: document.getElementById('curveVal'),
-    darkSeedsVal: document.getElementById('darkSeedsVal'),
-    darkSpreadVal: document.getElementById('darkSpreadVal'),
-    midSeedsVal: document.getElementById('midSeedsVal'),
-    midSpreadVal: document.getElementById('midSpreadVal'),
-    lightSeedsVal: document.getElementById('lightSeedsVal'),
-    lightSpreadVal: document.getElementById('lightSpreadVal')
+    color1SeedsVal: document.getElementById('color1SeedsVal'),
+    color1SpreadVal: document.getElementById('color1SpreadVal'),
+    color2SeedsVal: document.getElementById('color2SeedsVal'),
+    color2SpreadVal: document.getElementById('color2SpreadVal'),
+    color3SeedsVal: document.getElementById('color3SeedsVal'),
+    color3SpreadVal: document.getElementById('color3SpreadVal')
   };
 
   function updateLabels(){
@@ -164,15 +201,26 @@
     els.jitVal.textContent = parseFloat(els.jit.value).toFixed(2);
     els.stepVal.textContent = els.step.value;
     els.curveVal.textContent = parseFloat(els.curve.value).toFixed(2);
-    els.darkSeedsVal.textContent = els.darkSeeds.value;
-    els.darkSpreadVal.textContent = els.darkSpread.value;
-    els.midSeedsVal.textContent = els.midSeeds.value;
-    els.midSpreadVal.textContent = els.midSpread.value;
-    els.lightSeedsVal.textContent = els.lightSeeds.value;
-    els.lightSpreadVal.textContent = els.lightSpread.value;
+    els.color1SeedsVal.textContent = els.color1Seeds.value;
+    els.color1SpreadVal.textContent = els.color1Spread.value;
+    els.color2SeedsVal.textContent = els.color2Seeds.value;
+    els.color2SpreadVal.textContent = els.color2Spread.value;
+    els.color3SeedsVal.textContent = els.color3Seeds.value;
+    els.color3SpreadVal.textContent = els.color3Spread.value;
   }
 
-  // geometry & states
+  function updateColorPreview(){
+    userColors.color1 = els.color1Picker.value;
+    userColors.color2 = els.color2Picker.value;
+    userColors.color3 = els.color3Picker.value;
+    els.color1Preview.style.background = userColors.color1;
+    els.color2Preview.style.background = userColors.color2;
+    els.color3Preview.style.background = userColors.color3;
+    els.color1Swatch.style.background = userColors.color1;
+    els.color2Swatch.style.background = userColors.color2;
+    els.color3Swatch.style.background = userColors.color3;
+  }
+
   let points = [];
   let delaunay = null;
   let voronoi = null;
@@ -182,24 +230,14 @@
   let fillOrder = [];
   let currentOrder = 1;
   let edgeMap = new Map();
-  
-  // ジッター値を事前計算して保存
   let jitterCache = new Map();
   let jitterSeed = 0;
-
-  // Undo stack
   let undoStack = [];
   const MAX_UNDO = 50;
 
-  // helpers
   function randRange(a,b){ return a + Math.random()*(b-a); }
   function gaussianRandom(){ let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random(); return Math.sqrt(-2.0*Math.log(u))*Math.cos(2.0*Math.PI*v); }
-
-  // Seeded random for jitter consistency
-  function seededRandom(seed){
-    const x = Math.sin(seed) * 10000;
-    return x - Math.floor(x);
-  }
+  function seededRandom(seed){ const x = Math.sin(seed) * 10000; return x - Math.floor(x); }
 
   function makePoints(n){
     const pts = [];
@@ -255,7 +293,6 @@
     }
     cellCentroids = cellPolygons.map(p => polygonCentroid(p || []));
     
-    // edgeMap
     for(let i=0;i<cellPolygons.length;i++){
       const poly = cellPolygons[i];
       if(!poly) continue;
@@ -267,7 +304,6 @@
       }
     }
     
-    // ジッターキャッシュを事前計算
     computeJitterCache();
   }
 
@@ -287,7 +323,6 @@
     }
   }
 
-  // jitter function using cached values
   function jitterPoint(cellIdx, pointIdx, pt, neighbor, jitterAmount){
     if(!neighbor) return [pt[0],pt[1]];
     const dx = neighbor[0]-pt[0], dy = neighbor[1]-pt[1];
@@ -301,7 +336,6 @@
     return [pt[0] + nx*offset, pt[1] + ny*offset];
   }
 
-  // draw fills based on keepIndent setting
   function drawFilledCells(params){
     const { jitter, curveAmount, keepIndent } = params;
     const filledIdx = [];
@@ -340,12 +374,11 @@
         ctx.quadraticCurveTo(cx, cy, qj[0], qj[1]);
       }
       ctx.closePath();
-      ctx.fillStyle = COLORS[cellColors[i]];
+      ctx.fillStyle = userColors[cellColors[i]];
       ctx.fill();
     }
   }
 
-  // draw edges with z-order aware convex direction
   function drawEdges(params){
     const { lineWidth, jitter, curveAmount, invert, hideSameBorders, keepIndent } = params;
     ctx.lineWidth = lineWidth;
@@ -462,7 +495,6 @@
       const sign = Math.sign(vx * nx + vy * ny) || 1;
       const offsetBase = (curveAmount * Math.min(len,80)) * 0.35;
       
-      // Use cached jitter for edge midpoint
       const edgeJitterKey = `edge-${edgeKey}`;
       let edgeJitterOffset = jitterCache.get(edgeJitterKey);
       if(edgeJitterOffset === undefined){
@@ -475,11 +507,9 @@
       const cx = midx + nx * offset;
       const cy = midy + ny * offset;
 
-      // Find which cell indices p and q belong to for jitter lookup
       let cellForP = winner >= 0 ? winner : (cellArr.length > 0 ? cellArr[0] : 0);
       let cellForQ = winner >= 0 ? winner : (cellArr.length > 0 ? cellArr[0] : 0);
       
-      // Find point indices in polygon
       let pIdx = 0, qIdx = 0;
       if(cellForP >= 0 && cellPolygons[cellForP]){
         const poly = cellPolygons[cellForP];
@@ -525,6 +555,7 @@
             ctx.globalAlpha = 0.55;
             ctx.moveTo(pJ[0], pJ[1]);
             ctx.quadraticCurveTo(cx2, cy2, qJ[0], qJ[1]);
+            //ctx.stroke();
             ctx.globalAlpha = 1.0;
           }
         }
@@ -567,7 +598,6 @@
     }
   }
 
-  // Save state for undo
   function saveState(){
     const state = {
       cellColors: [...cellColors],
@@ -575,12 +605,11 @@
       currentOrder: currentOrder
     };
     undoStack.push(state);
-if(undoStack.length > MAX_UNDO){
+    if(undoStack.length > MAX_UNDO){
       undoStack.shift();
     }
   }
 
-  // Undo function
   function undo(){
     if(undoStack.length === 0) return;
     const state = undoStack.pop();
@@ -686,15 +715,15 @@ if(undoStack.length > MAX_UNDO){
 
   function runAllRandomFill(){
     saveState();
-    const ds = parseInt(els.darkSeeds.value,10);
-    const dsp = parseInt(els.darkSpread.value,10);
-    const ms = parseInt(els.midSeeds.value,10);
-    const msp = parseInt(els.midSpread.value,10);
-    const ls = parseInt(els.lightSeeds.value,10);
-    const lsp = parseInt(els.lightSpread.value,10);
-    randomFillColorConnected('dark', ds, dsp);
-    randomFillColorConnected('mid', ms, msp);
-    randomFillColorConnected('light', ls, lsp);
+    const c1s = parseInt(els.color1Seeds.value,10);
+    const c1sp = parseInt(els.color1Spread.value,10);
+    const c2s = parseInt(els.color2Seeds.value,10);
+    const c2sp = parseInt(els.color2Spread.value,10);
+    const c3s = parseInt(els.color3Seeds.value,10);
+    const c3sp = parseInt(els.color3Spread.value,10);
+    randomFillColorConnected('color1', c1s, c1sp);
+    randomFillColorConnected('color2', c2s, c2sp);
+    randomFillColorConnected('color3', c3s, c3sp);
     drawAll();
   }
 
@@ -702,7 +731,11 @@ if(undoStack.length > MAX_UNDO){
     resetFills(); 
   }
 
-  // event wiring
+  // カラーピッカーのイベント
+  els.color1Picker.addEventListener('input', ()=>{ updateColorPreview(); drawAll(); });
+  els.color2Picker.addEventListener('input', ()=>{ updateColorPreview(); drawAll(); });
+  els.color3Picker.addEventListener('input', ()=>{ updateColorPreview(); drawAll(); });
+
   canvas.addEventListener('click', (evt)=>{
     if(!els.clickMode.checked) return;
     const [x,y] = getMousePos(evt);
@@ -729,7 +762,7 @@ if(undoStack.length > MAX_UNDO){
     });
   });
   
-  ['darkSeeds','darkSpread','midSeeds','midSpread','lightSeeds','lightSpread'].forEach(id=>{
+  ['color1Seeds','color1Spread','color2Seeds','color2Spread','color3Seeds','color3Spread'].forEach(id=>{
     const el = document.getElementById(id);
     el.addEventListener('input', updateLabels);
     el.addEventListener('change', updateLabels);
@@ -738,7 +771,7 @@ if(undoStack.length > MAX_UNDO){
   els.regen.addEventListener('click', generateAndDraw);
   els.save.addEventListener('click', ()=>{ 
     const link = document.createElement('a'); 
-    link.download = 'voronoi_zorder.png'; 
+    link.download = 'voronoi_custom_colors.png'; 
     link.href = canvas.toDataURL('image/png'); 
     link.click(); 
   });
@@ -747,7 +780,6 @@ if(undoStack.length > MAX_UNDO){
   els.randomFill.addEventListener('click', runAllRandomFill);
   els.randomClear.addEventListener('click', clearRandomFills);
 
-  // Keyboard shortcut for undo
   document.addEventListener('keydown', (evt)=>{
     if((evt.ctrlKey || evt.metaKey) && evt.key === 'z'){
       evt.preventDefault();
@@ -755,11 +787,10 @@ if(undoStack.length > MAX_UNDO){
     }
   });
 
-  // init
   updateLabels();
+  updateColorPreview();
   generateAndDraw();
 
-  // responsive CSS scaling
   function fitCanvas(){
     const container = canvas.parentElement;
     const rect = container.getBoundingClientRect();
