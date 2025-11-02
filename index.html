@@ -36,7 +36,6 @@
 
 <div class="panel" role="region" aria-label="controls">
   <h1>Voronoi Line Art </h1>
-  <div class="small">後から塗った方を優先して丸みと色で上書きします。へこみ線(下地ライン)を残す/消すの切替が可能。Ctrl+Zで元に戻せます。</div>
 
   <label>ポイント数 <span id="ptsVal" class="value">120</span></label>
   <input id="pts" type="range" min="10" max="800" value="120">
@@ -234,6 +233,12 @@
   let jitterSeed = 0;
   let undoStack = [];
   const MAX_UNDO = 50;
+
+  // --- 新規追加: キー押しっぱなしでの連続塗り用変数 ---
+  let paintingActive = false;         // 数字キーを押している間 true
+  let paintingColorKey = 'none';      // 'color1'|'color2'|'color3'|'none'
+  let lastMousePos = null;            // マウスの最後の位置 (キャンバス座標)
+  // ----------------------------------------------------
 
   function randRange(a,b){ return a + Math.random()*(b-a); }
   function gaussianRandom(){ let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random(); return Math.sqrt(-2.0*Math.log(u))*Math.cos(2.0*Math.PI*v); }
@@ -736,12 +741,34 @@
   els.color2Picker.addEventListener('input', ()=>{ updateColorPreview(); drawAll(); });
   els.color3Picker.addEventListener('input', ()=>{ updateColorPreview(); drawAll(); });
 
+  // クリック塗り（従来どおり、クリックのみで1回ずつ切り替え）
   canvas.addEventListener('click', (evt)=>{
     if(!els.clickMode.checked) return;
     const [x,y] = getMousePos(evt);
     const idx = findCellIndex(x,y);
     if(idx >= 0) cycleCellColor(idx);
   });
+
+  // --- 新規追加: マウス移動で最後の位置を記録し、数字押しっぱで連続塗り ---
+  canvas.addEventListener('mousemove', (evt)=>{
+    const pos = getMousePos(evt);
+    lastMousePos = pos;
+    if(paintingActive){
+      const idx = findCellIndex(pos[0], pos[1]);
+      if(idx >= 0){
+        if(cellColors[idx] !== paintingColorKey){
+          // 同じセルを何度も塗らないように色が異なる場合のみ変更
+          cellColors[idx] = paintingColorKey;
+          fillOrder[idx] = paintingColorKey === 'none' ? 0 : currentOrder++;
+          drawAll();
+        }
+      }
+    }
+  });
+  // 画面外に出た/入った等でも lastMousePos を更新する
+  canvas.addEventListener('mouseleave', ()=>{ lastMousePos = null; });
+  canvas.addEventListener('mouseenter', (evt)=>{ lastMousePos = getMousePos(evt); });
+  // --------------------------------------------------------------
 
   ['pts','lw','jit','step','curve','showCenters','invert','hideSameBorders','keepIndentLines'].forEach(id=>{
     const el = document.getElementById(id);
@@ -786,6 +813,43 @@
       undo();
     }
   });
+
+  // --- 新規追加: 数字キーでの塗り開始 / 押しっぱなしで連続塗り ---
+  document.addEventListener('keydown', (evt)=>{
+    // 連打 (repeat) 時は saveState を繰り返さないため最初のみ処理
+    if(evt.repeat) {
+      // ただしキーが既に paintingActive な場合は何もしない
+      if(paintingActive) return;
+    }
+    if(evt.key === '1' || evt.key === '2' || evt.key === '3' || evt.key === '4'){
+      const map = {'1':'color1','2':'color2','3':'color3','4':'none'};
+      paintingColorKey = map[evt.key];
+      // 押し始めに undo 用に状態を保存（連続塗りを一回で undo 可能に）
+      if(!paintingActive) saveState();
+      paintingActive = true;
+      // 押した瞬間にマウス位置に塗る（もしマウスがキャンバス上にあれば）
+      if(lastMousePos){
+        const idx = findCellIndex(lastMousePos[0], lastMousePos[1]);
+        if(idx >= 0){
+          if(cellColors[idx] !== paintingColorKey){
+            cellColors[idx] = paintingColorKey;
+            fillOrder[idx] = paintingColorKey === 'none' ? 0 : currentOrder++;
+            drawAll();
+          }
+        }
+      }
+      // マウス操作に影響しないよう既定のキー操作を抑制
+      evt.preventDefault();
+    }
+  });
+
+  document.addEventListener('keyup', (evt)=>{
+    if(evt.key === '1' || evt.key === '2' || evt.key === '3' || evt.key === '4'){
+      paintingActive = false;
+      paintingColorKey = 'none';
+    }
+  });
+  // --------------------------------------------------------------
 
   updateLabels();
   updateColorPreview();
